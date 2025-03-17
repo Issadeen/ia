@@ -45,6 +45,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user)
       if (user) {
+        // Store the user auth state in localStorage to help with session persistence
+        localStorage.setItem('authUser', 'true');
+        
         const displayName = user.email ? user.email.split('@')[0] : "User"
         const joinDate = user.metadata.creationTime || null
         
@@ -56,8 +59,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('userInfo', JSON.stringify(userInfo))
         setUserInfo(userInfo)
       } else {
-        // Don't clear localStorage on page refresh
-        // Only clear on explicit logout which happens elsewhere
+        // Only clear if not a page refresh
+        if (document.visibilityState !== 'hidden') {
+          localStorage.removeItem('authUser');
+        }
       }
       setLoading(false)
     })

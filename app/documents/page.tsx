@@ -9,10 +9,11 @@ import { toast } from "sonner"
 import { collection, query, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { Spinner } from "@/components/ui/spinner"
-import { FileUp, Plus, FileText, ChevronRight, Calendar, Download, Search, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
+import { FileUp, Plus, FileText, ChevronRight, Download, Search, ArrowUp, ArrowDown, ArrowUpDown, FileOutput } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import DocumentForm from "@/components/document-form"
+import { exportToCSV } from "@/lib/utils"
 
 interface Document {
   id: string;
@@ -52,7 +53,7 @@ export default function DocumentsPage() {
       
       setIsLoading(true)
       try {
-        // Remove the orderBy clause that's causing the index requirement
+        // This query filters documents by userId, so each user only sees their own documents
         const q = query(
           collection(db, "documents"), 
           where("userId", "==", user.uid)
@@ -108,7 +109,7 @@ export default function DocumentsPage() {
       if (sortDirection === "asc") {
         return aValue > bValue ? 1 : -1;
       } else {
-        return aValue < bValue ? 1 : -1;
+        return aValue < bValue ? -1 : 1;
       }
     });
 
@@ -144,6 +145,16 @@ export default function DocumentsPage() {
       });
     } catch (e) {
       return dateString;
+    }
+  };
+
+  const handleExport = () => {
+    if (sortedAndFilteredDocuments.length > 0) {
+      const filename = `truck-documents-${new Date().toISOString().split('T')[0]}.csv`;
+      exportToCSV(sortedAndFilteredDocuments, filename);
+      toast.success('Export successful');
+    } else {
+      toast.error('No documents to export');
     }
   };
 
@@ -227,12 +238,24 @@ export default function DocumentsPage() {
                   />
                 </div>
                 
-                <Button 
-                  onClick={() => setShowForm(true)} 
-                  className="w-full sm:w-auto"
-                >
-                  <Plus className="h-4 w-4 mr-2" /> New Document
-                </Button>
+                <div className="flex gap-2">
+                  {sortedAndFilteredDocuments.length > 0 && (
+                    <Button 
+                      variant="outline" 
+                      onClick={handleExport} 
+                      title="Export to CSV"
+                    >
+                      <FileOutput className="h-4 w-4 mr-2" /> Export
+                    </Button>
+                  )}
+                  
+                  <Button 
+                    onClick={() => setShowForm(true)} 
+                    className="w-full sm:w-auto"
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> New Document
+                  </Button>
+                </div>
               </div>
             </div>
             
@@ -307,7 +330,7 @@ export default function DocumentsPage() {
                           onClick={() => handleSort("at20Depot")}
                         >
                           <div className="flex items-center">
-                            From
+                            AT20
                             {getSortIcon("at20Depot")}
                           </div>
                         </TableHead>
@@ -316,7 +339,7 @@ export default function DocumentsPage() {
                           onClick={() => handleSort("destination")}
                         >
                           <div className="flex items-center">
-                            To
+                            Destination
                             {getSortIcon("destination")}
                           </div>
                         </TableHead>
@@ -343,15 +366,15 @@ export default function DocumentsPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <Button 
-                                asChild 
-                                size="sm" 
-                                variant="ghost" 
+                              <Button
+                                size="sm"
+                                variant="ghost"
                                 className="h-8 px-2 opacity-80 group-hover:opacity-100 group-hover:bg-primary/10 transition-all"
+                                asChild
                               >
-                                <a 
-                                  href={doc.gatePassUrl} 
-                                  target="_blank" 
+                                <a
+                                  href={doc.gatePassUrl}
+                                  target="_blank"
                                   rel="noopener noreferrer"
                                   title={doc.gatePassName}
                                 >
@@ -359,15 +382,15 @@ export default function DocumentsPage() {
                                   GP
                                 </a>
                               </Button>
-                              <Button 
-                                asChild 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 variant="ghost"
                                 className="h-8 px-2 opacity-80 group-hover:opacity-100 group-hover:bg-primary/10 transition-all"
+                                asChild
                               >
-                                <a 
-                                  href={doc.tr812Url} 
-                                  target="_blank" 
+                                <a
+                                  href={doc.tr812Url}
+                                  target="_blank"
                                   rel="noopener noreferrer"
                                   title={doc.tr812Name}
                                 >
