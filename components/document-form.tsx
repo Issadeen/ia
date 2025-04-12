@@ -11,7 +11,7 @@ import { toast } from "sonner"
 import { collection, addDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { Spinner } from "@/components/ui/spinner"
-import { FileUp } from "lucide-react"
+import { FileUp, Trash2 } from "lucide-react"
 import { useStorageQuota } from '@/hooks/use-storage-quota'
 import { auth } from "@/lib/firebase"
 import { useImgBBUpload } from "@/hooks/use-imgbb-upload";
@@ -33,6 +33,8 @@ export default function DocumentForm({ onSuccess }: DocumentFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [gatePassFile, setGatePassFile] = useState<File | null>(null)
   const [tr812File, setTr812File] = useState<File | null>(null)
+  const [ePermitFile, setEPermitFile] = useState<File | null>(null)
+  const [showEPermit, setShowEPermit] = useState(false)
   const { register, handleSubmit, reset, formState: { errors } } = useForm<DocumentFormData>()
   const { usedBytes, formattedUsage, isLoading: isLoadingQuota } = useStorageQuota()
   const { uploadFile, isUploading } = useImgBBUpload()
@@ -49,6 +51,20 @@ export default function DocumentForm({ onSuccess }: DocumentFormProps) {
     if (e.target.files && e.target.files[0]) {
       setTr812File(e.target.files[0])
     }
+  }
+
+  const handleDestinationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toLowerCase()
+    setShowEPermit(value.includes('ssd'))
+    register('destination').onChange(e)
+  }
+
+  const handleClearForm = () => {
+    reset()
+    setGatePassFile(null)
+    setTr812File(null)
+    setEPermitFile(null)
+    setShowEPermit(false)
   }
 
   const onSubmit = async (data: DocumentFormData) => {
@@ -73,6 +89,15 @@ export default function DocumentForm({ onSuccess }: DocumentFormProps) {
       
       toast.info('Uploading TR812 form...');
       const tr812Url = await uploadFile(tr812File);
+
+      let ePermitUrl = null
+      let ePermitName = null
+      
+      if (ePermitFile) {
+        toast.info('Uploading ePermit...')
+        ePermitUrl = await uploadFile(ePermitFile)
+        ePermitName = ePermitFile.name
+      }
       
       toast.info('Saving document information...');
       
@@ -89,6 +114,8 @@ export default function DocumentForm({ onSuccess }: DocumentFormProps) {
         tr812Url,
         gatePassName: gatePassFile.name,
         tr812Name: tr812File.name,
+        ePermitUrl,
+        ePermitName,
         createdAt: new Date().toISOString()
       });
       
@@ -96,6 +123,7 @@ export default function DocumentForm({ onSuccess }: DocumentFormProps) {
       reset();
       setGatePassFile(null);
       setTr812File(null);
+      setEPermitFile(null);
       onSuccess();
     } catch (error) {
       console.error('Error uploading documents:', error);
@@ -110,14 +138,44 @@ export default function DocumentForm({ onSuccess }: DocumentFormProps) {
     }
   }
 
+  if (isLoadingQuota) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Spinner className="h-10 w-10 text-primary" />
+          <p className="text-muted-foreground animate-pulse">Loading form...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Card className="w-full shadow-md">
       <CardHeader className="bg-muted/50">
-        <CardTitle className="text-xl bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent flex items-center gap-2">
-          <FileUp className="h-5 w-5" />
-          New Document
-        </CardTitle>
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-xl bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent flex items-center gap-2">
+            <FileUp className="h-5 w-5" />
+            New Document
+          </CardTitle>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClearForm}
+            className="text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Clear Form
+          </Button>
+        </div>
       </CardHeader>
+
+      <div className="px-6 py-2 bg-muted/50 border-t border-b text-sm">
+        <p className="text-muted-foreground">
+          Fields marked with <span className="text-destructive">*</span> are required.
+          {showEPermit && " ePermit is recommended for SSD destinations."}
+        </p>
+      </div>
+
       <CardContent className="pt-6">
         {!isLoadingQuota && (
           <div className="mb-6">
@@ -146,12 +204,14 @@ export default function DocumentForm({ onSuccess }: DocumentFormProps) {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="truckNumber">Truck Number</Label>
+              <Label htmlFor="truckNumber">
+                Truck Number <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="truckNumber"
                 {...register('truckNumber', { required: true })}
                 className={errors.truckNumber ? "border-destructive" : ""}
-                placeholder="e.g. TRK-12345"
+                placeholder="e.g. KAU418D"
               />
               {errors.truckNumber && (
                 <p className="text-sm text-destructive">Required</p>
@@ -159,7 +219,9 @@ export default function DocumentForm({ onSuccess }: DocumentFormProps) {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="loadedDate">Loaded Date</Label>
+              <Label htmlFor="loadedDate">
+                Loaded Date <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="loadedDate"
                 type="date"
@@ -172,12 +234,14 @@ export default function DocumentForm({ onSuccess }: DocumentFormProps) {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="at20Depot">AT20 Depot</Label>
+              <Label htmlFor="at20Depot">
+                AT20 <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="at20Depot"
                 {...register('at20Depot', { required: true })}
                 className={errors.at20Depot ? "border-destructive" : ""}
-                placeholder="e.g. Main Depot"
+                placeholder="e.g. 35.987"
               />
               {errors.at20Depot && (
                 <p className="text-sm text-destructive">Required</p>
@@ -185,12 +249,14 @@ export default function DocumentForm({ onSuccess }: DocumentFormProps) {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="product">Product</Label>
+              <Label htmlFor="product">
+                Product <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="product"
                 {...register('product', { required: true })}
                 className={errors.product ? "border-destructive" : ""}
-                placeholder="e.g. Diesel"
+                placeholder="e.g. AGO"
               />
               {errors.product && (
                 <p className="text-sm text-destructive">Required</p>
@@ -198,12 +264,15 @@ export default function DocumentForm({ onSuccess }: DocumentFormProps) {
             </div>
             
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="destination">Destination</Label>
+              <Label htmlFor="destination">
+                Destination <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="destination"
                 {...register('destination', { required: true })}
                 className={errors.destination ? "border-destructive" : ""}
-                placeholder="e.g. North Distribution Center"
+                placeholder="e.g. SSD OR DRC"
+                onChange={handleDestinationChange}
               />
               {errors.destination && (
                 <p className="text-sm text-destructive">Required</p>
@@ -214,7 +283,7 @@ export default function DocumentForm({ onSuccess }: DocumentFormProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="gatePass">
-                Gate Pass <span className="text-muted-foreground text-xs">(PDF, JPG, PNG)</span>
+                Gate Pass <span className="text-destructive">*</span> <span className="text-muted-foreground text-xs">(PDF, JPG, PNG)</span>
               </Label>
               <div className="border rounded-md overflow-hidden">
                 <Input
@@ -235,7 +304,7 @@ export default function DocumentForm({ onSuccess }: DocumentFormProps) {
             
             <div className="space-y-2">
               <Label htmlFor="tr812">
-                TR812 Form <span className="text-muted-foreground text-xs">(PDF, JPG, PNG)</span>
+                TR812 Form <span className="text-destructive">*</span> <span className="text-muted-foreground text-xs">(PDF, JPG, PNG)</span>
               </Label>
               <div className="border rounded-md overflow-hidden">
                 <Input
@@ -254,6 +323,28 @@ export default function DocumentForm({ onSuccess }: DocumentFormProps) {
               )}
             </div>
           </div>
+
+          {showEPermit && (
+            <div className="space-y-2">
+              <Label htmlFor="ePermit">
+                ePermit <span className="text-muted-foreground text-xs">(Optional)</span>
+              </Label>
+              <div className="border rounded-md overflow-hidden">
+                <Input
+                  id="ePermit"
+                  type="file"
+                  onChange={(e) => e.target.files && setEPermitFile(e.target.files[0])}
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="border-0"
+                />
+              </div>
+              {ePermitFile && (
+                <p className="text-xs text-muted-foreground">
+                  Selected: {ePermitFile.name}
+                </p>
+              )}
+            </div>
+          )}
           
           <div className="flex justify-end">
             <Button
